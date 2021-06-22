@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RedisController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">spring-boot-redisson-failover-sdk-usage-example</a> &gt; <a href="index.source.html" class="el_package">com.other.app</a> &gt; <span class="el_source">RedisController.java</span></div><h1>RedisController.java</h1><pre class="source lang-java linenums">package com.other.app;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.SpringApplication;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+<span class="fc" id="L13">public class RedisController {</span>
+<span class="fc" id="L14">    private final static Logger logger = LoggerFactory.getLogger(MultiRedisApplication.class);</span>
+
+    @Autowired
+    @Qualifier(&quot;redisTemplate&quot;)
+    private RedisTemplate masterRedisTemplate;
+
+    @GetMapping(&quot;/redis&quot;)
+    public String run() throws Exception {
+
+<span class="fc" id="L23">        masterRedisTemplate.opsForValue().set(&quot;hello&quot;, &quot;world_1&quot;);</span>
+
+<span class="fc" id="L25">        String primaryKeyValue = masterRedisTemplate.opsForValue().get(&quot;hello&quot;).toString();</span>
+<span class="fc" id="L26">        String secondaryKeyValue = masterRedisTemplate.opsForValue().get(&quot;hello&quot;).toString();</span>
+
+<span class="fc" id="L28">        logger.info(&quot;==================================================================&quot;);</span>
+<span class="fc" id="L29">        logger.info(String.format(&quot;read the primary redis, key is `hello`, value is %s&quot;, primaryKeyValue));</span>
+<span class="fc" id="L30">        logger.info(String.format(&quot;read the secondary redis, key is `hello`, value is %s&quot;, secondaryKeyValue));</span>
+<span class="fc" id="L31">        logger.info(&quot;==================================================================&quot;);</span>
+
+<span class="fc" id="L33">        return &quot;read the primary redis, key is `hello`, value is &quot; + primaryKeyValue;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>
