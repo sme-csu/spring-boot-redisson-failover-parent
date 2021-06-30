@@ -1,0 +1,5 @@
+com/microsoft/aa/redis/property/RedisProperty.class
+com/microsoft/aa/redis/property/BackupRedisProperty.class
+com/microsoft/aa/redis/config/RedisScheduledCheckTask.class
+com/microsoft/aa/redis/config/RedisFailoverAutoConfiguration.class
+com/microsoft/aa/redis/property/MasterRedisProperty.class

@@ -1,0 +1,885 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: ClusterConnectionManager</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.redisson.cluster</a> ]
+</div>
+
+<h1>Coverage Summary for Class: ClusterConnectionManager (org.redisson.cluster)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">ClusterConnectionManager</td>
+<td class="coverageStat">
+  <span class="percent">
+    38.9%
+  </span>
+  <span class="absValue">
+    (14/ 36)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    30.5%
+  </span>
+  <span class="absValue">
+    (128/ 419)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">ClusterConnectionManager$1</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (2/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    30.3%
+  </span>
+  <span class="absValue">
+    (10/ 33)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    42.1%
+  </span>
+  <span class="absValue">
+    (16/ 38)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    30.5%
+  </span>
+  <span class="absValue">
+    (138/ 452)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/**
+<i>2</i>&nbsp; * Copyright (c) 2013-2020 Nikita Koksharov
+<i>3</i>&nbsp; *
+<i>4</i>&nbsp; * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+<i>5</i>&nbsp; * you may not use this file except in compliance with the License.
+<i>6</i>&nbsp; * You may obtain a copy of the License at
+<i>7</i>&nbsp; *
+<i>8</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; * Unless required by applicable law or agreed to in writing, software
+<i>11</i>&nbsp; * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+<i>12</i>&nbsp; * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+<i>13</i>&nbsp; * See the License for the specific language governing permissions and
+<i>14</i>&nbsp; * limitations under the License.
+<i>15</i>&nbsp; */
+<i>16</i>&nbsp;package org.redisson.cluster;
+<i>17</i>&nbsp;
+<i>18</i>&nbsp;import io.netty.resolver.AddressResolver;
+<i>19</i>&nbsp;import io.netty.util.NetUtil;
+<i>20</i>&nbsp;import io.netty.util.concurrent.Future;
+<i>21</i>&nbsp;import io.netty.util.concurrent.FutureListener;
+<i>22</i>&nbsp;import io.netty.util.concurrent.ScheduledFuture;
+<i>23</i>&nbsp;import org.redisson.api.NatMapper;
+<i>24</i>&nbsp;import org.redisson.api.NodeType;
+<i>25</i>&nbsp;import org.redisson.api.RFuture;
+<i>26</i>&nbsp;import org.redisson.client.*;
+<i>27</i>&nbsp;import org.redisson.client.protocol.RedisCommands;
+<i>28</i>&nbsp;import org.redisson.client.protocol.RedisStrictCommand;
+<i>29</i>&nbsp;import org.redisson.cluster.ClusterNodeInfo.Flag;
+<i>30</i>&nbsp;import org.redisson.cluster.ClusterPartition.Type;
+<i>31</i>&nbsp;import org.redisson.config.ClusterServersConfig;
+<i>32</i>&nbsp;import org.redisson.config.Config;
+<i>33</i>&nbsp;import org.redisson.config.MasterSlaveServersConfig;
+<i>34</i>&nbsp;import org.redisson.config.ReadMode;
+<i>35</i>&nbsp;import org.redisson.connection.CRC16;
+<i>36</i>&nbsp;import org.redisson.connection.ClientConnectionsEntry.FreezeReason;
+<i>37</i>&nbsp;import org.redisson.connection.MasterSlaveConnectionManager;
+<i>38</i>&nbsp;import org.redisson.connection.MasterSlaveEntry;
+<i>39</i>&nbsp;import org.redisson.connection.SingleEntry;
+<i>40</i>&nbsp;import org.redisson.misc.RPromise;
+<i>41</i>&nbsp;import org.redisson.misc.RedisURI;
+<i>42</i>&nbsp;import org.redisson.misc.RedissonPromise;
+<i>43</i>&nbsp;import org.slf4j.Logger;
+<i>44</i>&nbsp;import org.slf4j.LoggerFactory;
+<i>45</i>&nbsp;
+<i>46</i>&nbsp;import java.net.InetSocketAddress;
+<i>47</i>&nbsp;import java.util.*;
+<i>48</i>&nbsp;import java.util.concurrent.*;
+<i>49</i>&nbsp;import java.util.concurrent.atomic.AtomicInteger;
+<i>50</i>&nbsp;import java.util.concurrent.atomic.AtomicReference;
+<i>51</i>&nbsp;import java.util.stream.Collectors;
+<i>52</i>&nbsp;
+<i>53</i>&nbsp;/**
+<i>54</i>&nbsp; *
+<i>55</i>&nbsp; * @author Nikita Koksharov
+<i>56</i>&nbsp; *
+<i>57</i>&nbsp; */
+<b class="fc"><i>58</i>&nbsp;public class ClusterConnectionManager extends MasterSlaveConnectionManager {</b>
+<i>59</i>&nbsp;
+<b class="fc"><i>60</i>&nbsp;    private final Logger log = LoggerFactory.getLogger(getClass());</b>
+<i>61</i>&nbsp;
+<b class="fc"><i>62</i>&nbsp;    private final ConcurrentMap&lt;Integer, ClusterPartition&gt; lastPartitions = new ConcurrentHashMap&lt;&gt;();</b>
+<i>63</i>&nbsp;
+<i>64</i>&nbsp;    private ScheduledFuture&lt;?&gt; monitorFuture;
+<i>65</i>&nbsp;
+<i>66</i>&nbsp;    private volatile RedisURI lastClusterNode;
+<i>67</i>&nbsp;
+<i>68</i>&nbsp;    private RedisStrictCommand&lt;List&lt;ClusterNodeInfo&gt;&gt; clusterNodesCommand;
+<i>69</i>&nbsp;
+<i>70</i>&nbsp;    private String configEndpointHostName;
+<i>71</i>&nbsp;
+<i>72</i>&nbsp;    private final NatMapper natMapper;
+<i>73</i>&nbsp;
+<i>74</i>&nbsp;    public ClusterConnectionManager(ClusterServersConfig cfg, Config config, UUID id) {
+<b class="fc"><i>75</i>&nbsp;        super(config, id);</b>
+<i>76</i>&nbsp;
+<b class="fc"><i>77</i>&nbsp;        if (cfg.getNodeAddresses().isEmpty()) {</b>
+<b class="nc"><i>78</i>&nbsp;            throw new IllegalArgumentException(&quot;At least one cluster node should be defined!&quot;);</b>
+<i>79</i>&nbsp;        }
+<i>80</i>&nbsp;
+<b class="fc"><i>81</i>&nbsp;        this.natMapper = cfg.getNatMapper();</b>
+<b class="fc"><i>82</i>&nbsp;        this.config = create(cfg);</b>
+<b class="fc"><i>83</i>&nbsp;        initTimer(this.config);</b>
+<i>84</i>&nbsp;
+<b class="fc"><i>85</i>&nbsp;        Throwable lastException = null;</b>
+<b class="fc"><i>86</i>&nbsp;        List&lt;String&gt; failedMasters = new ArrayList&lt;String&gt;();</b>
+<b class="fc"><i>87</i>&nbsp;        for (String address : cfg.getNodeAddresses()) {</b>
+<b class="fc"><i>88</i>&nbsp;            RedisURI addr = new RedisURI(address);</b>
+<b class="fc"><i>89</i>&nbsp;            RFuture&lt;RedisConnection&gt; connectionFuture = connectToNode(cfg, addr, null, addr.getHost());</b>
+<i>90</i>&nbsp;            try {
+<b class="fc"><i>91</i>&nbsp;                RedisConnection connection = connectionFuture.syncUninterruptibly().getNow();</b>
+<i>92</i>&nbsp;
+<b class="fc"><i>93</i>&nbsp;                if (cfg.getNodeAddresses().size() == 1 &amp;&amp; NetUtil.createByteArrayFromIpAddressString(addr.getHost()) == null) {</b>
+<b class="fc"><i>94</i>&nbsp;                    configEndpointHostName = addr.getHost();</b>
+<i>95</i>&nbsp;                }
+<i>96</i>&nbsp;
+<b class="fc"><i>97</i>&nbsp;                clusterNodesCommand = RedisCommands.CLUSTER_NODES;</b>
+<b class="fc"><i>98</i>&nbsp;                if (addr.isSsl()) {</b>
+<b class="nc"><i>99</i>&nbsp;                    clusterNodesCommand = RedisCommands.CLUSTER_NODES_SSL;</b>
+<i>100</i>&nbsp;                }
+<i>101</i>&nbsp;
+<b class="fc"><i>102</i>&nbsp;                List&lt;ClusterNodeInfo&gt; nodes = connection.sync(clusterNodesCommand);</b>
+<i>103</i>&nbsp;
+<b class="fc"><i>104</i>&nbsp;                StringBuilder nodesValue = new StringBuilder();</b>
+<b class="fc"><i>105</i>&nbsp;                for (ClusterNodeInfo clusterNodeInfo : nodes) {</b>
+<b class="fc"><i>106</i>&nbsp;                    nodesValue.append(clusterNodeInfo.getNodeInfo()).append(&quot;\n&quot;);</b>
+<b class="fc"><i>107</i>&nbsp;                }</b>
+<b class="fc"><i>108</i>&nbsp;                log.info(&quot;Redis cluster nodes configuration got from {}:\n{}&quot;, connection.getRedisClient().getAddr(), nodesValue);</b>
+<i>109</i>&nbsp;
+<b class="fc"><i>110</i>&nbsp;                lastClusterNode = addr;</b>
+<i>111</i>&nbsp;
+<b class="fc"><i>112</i>&nbsp;                Collection&lt;ClusterPartition&gt; partitions = parsePartitions(nodes);</b>
+<b class="fc"><i>113</i>&nbsp;                List&lt;RFuture&lt;Collection&lt;RFuture&lt;Void&gt;&gt;&gt;&gt; futures = new ArrayList&lt;RFuture&lt;Collection&lt;RFuture&lt;Void&gt;&gt;&gt;&gt;();</b>
+<b class="fc"><i>114</i>&nbsp;                for (ClusterPartition partition : partitions) {</b>
+<b class="fc"><i>115</i>&nbsp;                    if (partition.isMasterFail()) {</b>
+<b class="nc"><i>116</i>&nbsp;                        failedMasters.add(partition.getMasterAddress().toString());</b>
+<b class="nc"><i>117</i>&nbsp;                        continue;</b>
+<i>118</i>&nbsp;                    }
+<b class="fc"><i>119</i>&nbsp;                    RFuture&lt;Collection&lt;RFuture&lt;Void&gt;&gt;&gt; masterFuture = addMasterEntry(partition, cfg);</b>
+<b class="fc"><i>120</i>&nbsp;                    futures.add(masterFuture);</b>
+<b class="fc"><i>121</i>&nbsp;                }</b>
+<i>122</i>&nbsp;
+<b class="fc"><i>123</i>&nbsp;                for (RFuture&lt;Collection&lt;RFuture&lt;Void&gt;&gt;&gt; masterFuture : futures) {</b>
+<b class="fc"><i>124</i>&nbsp;                    masterFuture.awaitUninterruptibly();</b>
+<b class="fc"><i>125</i>&nbsp;                    if (!masterFuture.isSuccess()) {</b>
+<b class="nc"><i>126</i>&nbsp;                        lastException = masterFuture.cause();</b>
+<b class="nc"><i>127</i>&nbsp;                        continue;</b>
+<i>128</i>&nbsp;                    }
+<b class="fc"><i>129</i>&nbsp;                    for (RFuture&lt;Void&gt; future : masterFuture.getNow()) {</b>
+<b class="fc"><i>130</i>&nbsp;                        future.awaitUninterruptibly();</b>
+<b class="fc"><i>131</i>&nbsp;                        if (!future.isSuccess()) {</b>
+<b class="nc"><i>132</i>&nbsp;                            lastException = future.cause();</b>
+<i>133</i>&nbsp;                        }
+<b class="fc"><i>134</i>&nbsp;                    }</b>
+<b class="fc"><i>135</i>&nbsp;                }</b>
+<b class="fc"><i>136</i>&nbsp;                break;</b>
+<b class="nc"><i>137</i>&nbsp;            } catch (Exception e) {</b>
+<b class="nc"><i>138</i>&nbsp;                lastException = e;</b>
+<b class="nc"><i>139</i>&nbsp;                log.warn(e.getMessage());</b>
+<i>140</i>&nbsp;            }
+<b class="nc"><i>141</i>&nbsp;        }</b>
+<i>142</i>&nbsp;
+<b class="fc"><i>143</i>&nbsp;        if (lastPartitions.isEmpty()) {</b>
+<b class="nc"><i>144</i>&nbsp;            stopThreads();</b>
+<b class="nc"><i>145</i>&nbsp;            if (failedMasters.isEmpty()) {</b>
+<b class="nc"><i>146</i>&nbsp;                throw new RedisConnectionException(&quot;Can&#39;t connect to servers!&quot;, lastException);</b>
+<i>147</i>&nbsp;            } else {
+<b class="nc"><i>148</i>&nbsp;                throw new RedisConnectionException(&quot;Can&#39;t connect to servers! Failed masters according to cluster status: &quot; + failedMasters, lastException);</b>
+<i>149</i>&nbsp;            }
+<i>150</i>&nbsp;        }
+<i>151</i>&nbsp;
+<b class="fc"><i>152</i>&nbsp;        if (cfg.isCheckSlotsCoverage() &amp;&amp; lastPartitions.size() != MAX_SLOT) {</b>
+<b class="nc"><i>153</i>&nbsp;            stopThreads();</b>
+<b class="nc"><i>154</i>&nbsp;            if (failedMasters.isEmpty()) {</b>
+<b class="nc"><i>155</i>&nbsp;                throw new RedisConnectionException(&quot;Not all slots covered! Only &quot; + lastPartitions.size() + &quot; slots are available. Set checkSlotsCoverage = false to avoid this check.&quot;, lastException);</b>
+<i>156</i>&nbsp;            } else {
+<b class="nc"><i>157</i>&nbsp;                throw new RedisConnectionException(&quot;Not all slots covered! Only &quot; + lastPartitions.size() + &quot; slots are available. Set checkSlotsCoverage = false to avoid this check. Failed masters according to cluster status: &quot; + failedMasters, lastException);</b>
+<i>158</i>&nbsp;            }
+<i>159</i>&nbsp;        }
+<i>160</i>&nbsp;
+<b class="fc"><i>161</i>&nbsp;        scheduleClusterChangeCheck(cfg, null);</b>
+<b class="fc"><i>162</i>&nbsp;    }</b>
+<i>163</i>&nbsp;
+<i>164</i>&nbsp;    @Override
+<i>165</i>&nbsp;    protected RedisClientConfig createRedisConfig(NodeType type, RedisURI address, int timeout, int commandTimeout, String sslHostname) {
+<b class="fc"><i>166</i>&nbsp;        RedisClientConfig result = super.createRedisConfig(type, address, timeout, commandTimeout, sslHostname);</b>
+<b class="fc"><i>167</i>&nbsp;        result.setReadOnly(type == NodeType.SLAVE &amp;&amp; config.getReadMode() != ReadMode.MASTER);</b>
+<b class="fc"><i>168</i>&nbsp;        return result;</b>
+<i>169</i>&nbsp;    }
+<i>170</i>&nbsp;
+<i>171</i>&nbsp;    private RFuture&lt;Collection&lt;RFuture&lt;Void&gt;&gt;&gt; addMasterEntry(ClusterPartition partition, ClusterServersConfig cfg) {
+<b class="fc"><i>172</i>&nbsp;        if (partition.isMasterFail()) {</b>
+<b class="nc"><i>173</i>&nbsp;            RedisException e = new RedisException(&quot;Failed to add master: &quot; +</b>
+<b class="nc"><i>174</i>&nbsp;                    partition.getMasterAddress() + &quot; for slot ranges: &quot; +</b>
+<b class="nc"><i>175</i>&nbsp;                    partition.getSlotRanges() + &quot;. Reason - server has FAIL flag&quot;);</b>
+<i>176</i>&nbsp;
+<b class="nc"><i>177</i>&nbsp;            if (partition.getSlotsAmount() == 0) {</b>
+<b class="nc"><i>178</i>&nbsp;                e = new RedisException(&quot;Failed to add master: &quot; +</b>
+<b class="nc"><i>179</i>&nbsp;                        partition.getMasterAddress() + &quot;. Reason - server has FAIL flag&quot;);</b>
+<i>180</i>&nbsp;            }
+<b class="nc"><i>181</i>&nbsp;            return RedissonPromise.newFailedFuture(e);</b>
+<i>182</i>&nbsp;        }
+<i>183</i>&nbsp;
+<b class="fc"><i>184</i>&nbsp;        RPromise&lt;Collection&lt;RFuture&lt;Void&gt;&gt;&gt; result = new RedissonPromise&lt;Collection&lt;RFuture&lt;Void&gt;&gt;&gt;();</b>
+<b class="fc"><i>185</i>&nbsp;        RFuture&lt;RedisConnection&gt; connectionFuture = connectToNode(cfg, partition.getMasterAddress(), null, configEndpointHostName);</b>
+<b class="fc"><i>186</i>&nbsp;        connectionFuture.onComplete((connection, ex1) -&gt; {</b>
+<b class="fc"><i>187</i>&nbsp;            if (ex1 != null) {</b>
+<b class="nc"><i>188</i>&nbsp;                log.error(&quot;Can&#39;t connect to master: {} with slot ranges: {}&quot;, partition.getMasterAddress(), partition.getSlotRanges());</b>
+<b class="nc"><i>189</i>&nbsp;                result.tryFailure(ex1);</b>
+<b class="nc"><i>190</i>&nbsp;                return;</b>
+<i>191</i>&nbsp;            }
+<i>192</i>&nbsp;
+<b class="fc"><i>193</i>&nbsp;            MasterSlaveServersConfig config = create(cfg);</b>
+<b class="fc"><i>194</i>&nbsp;            config.setMasterAddress(partition.getMasterAddress().toString());</b>
+<i>195</i>&nbsp;
+<i>196</i>&nbsp;            MasterSlaveEntry e;
+<b class="fc"><i>197</i>&nbsp;            List&lt;RFuture&lt;Void&gt;&gt; futures = new ArrayList&lt;RFuture&lt;Void&gt;&gt;();</b>
+<b class="fc"><i>198</i>&nbsp;            if (config.checkSkipSlavesInit()) {</b>
+<b class="fc"><i>199</i>&nbsp;                e = new SingleEntry(ClusterConnectionManager.this, config);</b>
+<i>200</i>&nbsp;            } else {
+<b class="nc"><i>201</i>&nbsp;                Set&lt;String&gt; slaveAddresses = partition.getSlaveAddresses().stream().map(r -&gt; r.toString()).collect(Collectors.toSet());</b>
+<b class="nc"><i>202</i>&nbsp;                config.setSlaveAddresses(slaveAddresses);</b>
+<i>203</i>&nbsp;
+<b class="nc"><i>204</i>&nbsp;                e = new MasterSlaveEntry(ClusterConnectionManager.this, config);</b>
+<i>205</i>&nbsp;
+<b class="nc"><i>206</i>&nbsp;                List&lt;RFuture&lt;Void&gt;&gt; fs = e.initSlaveBalancer(partition.getFailedSlaveAddresses());</b>
+<b class="nc"><i>207</i>&nbsp;                futures.addAll(fs);</b>
+<b class="nc"><i>208</i>&nbsp;                if (!partition.getSlaveAddresses().isEmpty()) {</b>
+<b class="nc"><i>209</i>&nbsp;                    log.info(&quot;slaves: {} added for slot ranges: {}&quot;, partition.getSlaveAddresses(), partition.getSlotRanges());</b>
+<b class="nc"><i>210</i>&nbsp;                    if (!partition.getFailedSlaveAddresses().isEmpty()) {</b>
+<b class="nc"><i>211</i>&nbsp;                        log.warn(&quot;slaves: {} is down for slot ranges: {}&quot;, partition.getFailedSlaveAddresses(), partition.getSlotRanges());</b>
+<i>212</i>&nbsp;                    }
+<i>213</i>&nbsp;                }
+<i>214</i>&nbsp;            }
+<i>215</i>&nbsp;
+<b class="fc"><i>216</i>&nbsp;            RFuture&lt;RedisClient&gt; f = e.setupMasterEntry(new RedisURI(config.getMasterAddress()));</b>
+<b class="fc"><i>217</i>&nbsp;            RPromise&lt;Void&gt; initFuture = new RedissonPromise&lt;Void&gt;();</b>
+<b class="fc"><i>218</i>&nbsp;            futures.add(initFuture);</b>
+<b class="fc"><i>219</i>&nbsp;            f.onComplete((res, ex3) -&gt; {</b>
+<b class="fc"><i>220</i>&nbsp;                if (ex3 != null) {</b>
+<b class="nc"><i>221</i>&nbsp;                    log.error(&quot;Can&#39;t add master: &quot; + partition.getMasterAddress() + &quot; for slot ranges: &quot; + partition.getSlotRanges(), ex3);</b>
+<b class="nc"><i>222</i>&nbsp;                    initFuture.tryFailure(ex3);</b>
+<b class="nc"><i>223</i>&nbsp;                    return;</b>
+<i>224</i>&nbsp;                }
+<i>225</i>&nbsp;
+<b class="fc"><i>226</i>&nbsp;                for (Integer slot : partition.getSlots()) {</b>
+<b class="fc"><i>227</i>&nbsp;                    addEntry(slot, e);</b>
+<b class="fc"><i>228</i>&nbsp;                    lastPartitions.put(slot, partition);</b>
+<b class="fc"><i>229</i>&nbsp;                }</b>
+<i>230</i>&nbsp;
+<b class="fc"><i>231</i>&nbsp;                log.info(&quot;master: {} added for slot ranges: {}&quot;, partition.getMasterAddress(), partition.getSlotRanges());</b>
+<b class="fc"><i>232</i>&nbsp;                if (!initFuture.trySuccess(null)) {</b>
+<b class="nc"><i>233</i>&nbsp;                    throw new IllegalStateException();</b>
+<i>234</i>&nbsp;                }
+<b class="fc"><i>235</i>&nbsp;            });</b>
+<b class="fc"><i>236</i>&nbsp;            if (!result.trySuccess(futures)) {</b>
+<b class="nc"><i>237</i>&nbsp;                throw new IllegalStateException();</b>
+<i>238</i>&nbsp;            }
+<b class="fc"><i>239</i>&nbsp;        });</b>
+<i>240</i>&nbsp;
+<b class="fc"><i>241</i>&nbsp;        return result;</b>
+<i>242</i>&nbsp;    }
+<i>243</i>&nbsp;
+<i>244</i>&nbsp;    private void scheduleClusterChangeCheck(ClusterServersConfig cfg, Iterator&lt;RedisURI&gt; iterator) {
+<b class="fc"><i>245</i>&nbsp;        log.warn(&quot;ClusterServersConfig:{}&quot;,cfg);</b>
+<b class="fc"><i>246</i>&nbsp;        log.warn(&quot;node address:{}&quot;,cfg.getNodeAddresses());</b>
+<b class="fc"><i>247</i>&nbsp;        monitorFuture = group.schedule(new Runnable() {</b>
+<i>248</i>&nbsp;            @Override
+<i>249</i>&nbsp;            public void run() {
+<b class="fc"><i>250</i>&nbsp;                if (configEndpointHostName != null) {</b>
+<b class="fc"><i>251</i>&nbsp;                    String address = cfg.getNodeAddresses().iterator().next();</b>
+<b class="fc"><i>252</i>&nbsp;                    log.warn(&quot;**address:{}&quot;,address);</b>
+<b class="fc"><i>253</i>&nbsp;                    RedisURI uri = new RedisURI(address);</b>
+<b class="fc"><i>254</i>&nbsp;                    log.warn(&quot;**uri:{}&quot;,address);</b>
+<b class="fc"><i>255</i>&nbsp;                    AddressResolver&lt;InetSocketAddress&gt; resolver = resolverGroup.getResolver(getGroup().next());</b>
+<b class="fc"><i>256</i>&nbsp;                    Future&lt;List&lt;InetSocketAddress&gt;&gt; allNodes = resolver.resolveAll(InetSocketAddress.createUnresolved(uri.getHost(), uri.getPort()));</b>
+<b class="fc"><i>257</i>&nbsp;                    log.warn(&quot;**allNodes:{}&quot;,allNodes);</b>
+<b class="fc"><i>258</i>&nbsp;                    for (InetSocketAddress inetSocketAddress : allNodes.getNow()) {</b>
+<b class="nc"><i>259</i>&nbsp;                        log.warn(&quot;**Address:{}&quot;,inetSocketAddress.getAddress());</b>
+<b class="nc"><i>260</i>&nbsp;                        log.warn(&quot;**Port:{}&quot;,inetSocketAddress.getPort());</b>
+<b class="nc"><i>261</i>&nbsp;                        log.warn(&quot;**HostName:{}&quot;,inetSocketAddress.getHostName());</b>
+<b class="nc"><i>262</i>&nbsp;                        log.warn(&quot;**HostString:{}&quot;,inetSocketAddress.getHostString());</b>
+<b class="nc"><i>263</i>&nbsp;                    }</b>
+<b class="nc"><i>264</i>&nbsp;                    allNodes.addListener(new FutureListener&lt;List&lt;InetSocketAddress&gt;&gt;() {</b>
+<i>265</i>&nbsp;                        @Override
+<i>266</i>&nbsp;                        public void operationComplete(Future&lt;List&lt;InetSocketAddress&gt;&gt; future) throws Exception {
+<i>267</i>&nbsp;                            AtomicReference&lt;Throwable&gt; lastException = new AtomicReference&lt;Throwable&gt;(future.cause());
+<i>268</i>&nbsp;                            if (!future.isSuccess()) {
+<i>269</i>&nbsp;                                checkClusterState(cfg, Collections.&lt;RedisURI&gt;emptyList().iterator(), lastException);
+<i>270</i>&nbsp;                                return;
+<i>271</i>&nbsp;                            }
+<i>272</i>&nbsp;
+<i>273</i>&nbsp;                            List&lt;RedisURI&gt; nodes = new ArrayList&lt;&gt;();
+<i>274</i>&nbsp;                            for (InetSocketAddress addr : future.getNow()) {
+<i>275</i>&nbsp;                                RedisURI node = new RedisURI(uri.getScheme() + &quot;://&quot; + addr.getAddress().getHostAddress() + &quot;:&quot; + addr.getPort());
+<i>276</i>&nbsp;                                RedisURI address = applyNatMap(node);
+<i>277</i>&nbsp;                                nodes.add(address);
+<i>278</i>&nbsp;                            }
+<i>279</i>&nbsp;
+<i>280</i>&nbsp;                            Iterator&lt;RedisURI&gt; nodesIterator = nodes.iterator();
+<i>281</i>&nbsp;                            checkClusterState(cfg, nodesIterator, lastException);
+<i>282</i>&nbsp;                        }
+<i>283</i>&nbsp;                    });
+<b class="nc"><i>284</i>&nbsp;                } else {</b>
+<b class="nc"><i>285</i>&nbsp;                    AtomicReference&lt;Throwable&gt; lastException = new AtomicReference&lt;Throwable&gt;();</b>
+<b class="nc"><i>286</i>&nbsp;                    Iterator&lt;RedisURI&gt; nodesIterator = iterator;</b>
+<b class="nc"><i>287</i>&nbsp;                    if (nodesIterator == null) {</b>
+<b class="nc"><i>288</i>&nbsp;                        List&lt;RedisURI&gt; nodes = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>289</i>&nbsp;                        List&lt;RedisURI&gt; slaves = new ArrayList&lt;&gt;();</b>
+<i>290</i>&nbsp;
+<b class="nc"><i>291</i>&nbsp;                        for (ClusterPartition partition : getLastPartitions()) {</b>
+<b class="nc"><i>292</i>&nbsp;                            if (!partition.isMasterFail()) {</b>
+<b class="nc"><i>293</i>&nbsp;                                nodes.add(partition.getMasterAddress());</b>
+<i>294</i>&nbsp;                            }
+<i>295</i>&nbsp;
+<b class="nc"><i>296</i>&nbsp;                            Set&lt;RedisURI&gt; partitionSlaves = new HashSet&lt;&gt;(partition.getSlaveAddresses());</b>
+<b class="nc"><i>297</i>&nbsp;                            partitionSlaves.removeAll(partition.getFailedSlaveAddresses());</b>
+<b class="nc"><i>298</i>&nbsp;                            slaves.addAll(partitionSlaves);</b>
+<b class="nc"><i>299</i>&nbsp;                        }</b>
+<i>300</i>&nbsp;                        // master nodes first
+<b class="nc"><i>301</i>&nbsp;                        nodes.addAll(slaves);</b>
+<i>302</i>&nbsp;
+<b class="nc"><i>303</i>&nbsp;                        nodesIterator = nodes.iterator();</b>
+<i>304</i>&nbsp;                    }
+<i>305</i>&nbsp;
+<b class="nc"><i>306</i>&nbsp;                    checkClusterState(cfg, nodesIterator, lastException);</b>
+<i>307</i>&nbsp;                }
+<b class="nc"><i>308</i>&nbsp;            }</b>
+<i>309</i>&nbsp;
+<b class="fc"><i>310</i>&nbsp;        }, cfg.getScanInterval(), TimeUnit.MILLISECONDS);</b>
+<b class="fc"><i>311</i>&nbsp;    }</b>
+<i>312</i>&nbsp;
+<i>313</i>&nbsp;    private void checkClusterState(ClusterServersConfig cfg, Iterator&lt;RedisURI&gt; iterator, AtomicReference&lt;Throwable&gt; lastException) {
+<b class="nc"><i>314</i>&nbsp;        if (!iterator.hasNext()) {</b>
+<b class="nc"><i>315</i>&nbsp;            if (lastException.get() != null) {</b>
+<b class="nc"><i>316</i>&nbsp;                log.error(&quot;Can&#39;t update cluster state&quot;, lastException.get());</b>
+<i>317</i>&nbsp;            }
+<b class="nc"><i>318</i>&nbsp;            scheduleClusterChangeCheck(cfg, null);</b>
+<b class="nc"><i>319</i>&nbsp;            return;</b>
+<i>320</i>&nbsp;        }
+<b class="nc"><i>321</i>&nbsp;        if (!getShutdownLatch().acquire()) {</b>
+<b class="nc"><i>322</i>&nbsp;            return;</b>
+<i>323</i>&nbsp;        }
+<b class="nc"><i>324</i>&nbsp;        RedisURI uri = iterator.next();</b>
+<b class="nc"><i>325</i>&nbsp;        RFuture&lt;RedisConnection&gt; connectionFuture = connectToNode(cfg, uri, null, configEndpointHostName);</b>
+<b class="nc"><i>326</i>&nbsp;        connectionFuture.onComplete((connection, e) -&gt; {</b>
+<b class="nc"><i>327</i>&nbsp;            if (e != null) {</b>
+<b class="nc"><i>328</i>&nbsp;                lastException.set(e);</b>
+<b class="nc"><i>329</i>&nbsp;                getShutdownLatch().release();</b>
+<b class="nc"><i>330</i>&nbsp;                checkClusterState(cfg, iterator, lastException);</b>
+<b class="nc"><i>331</i>&nbsp;                return;</b>
+<i>332</i>&nbsp;            }
+<i>333</i>&nbsp;
+<b class="nc"><i>334</i>&nbsp;            updateClusterState(cfg, connection, iterator, uri, lastException);</b>
+<b class="nc"><i>335</i>&nbsp;        });</b>
+<b class="nc"><i>336</i>&nbsp;    }</b>
+<i>337</i>&nbsp;
+<i>338</i>&nbsp;    private void updateClusterState(ClusterServersConfig cfg, RedisConnection connection,
+<i>339</i>&nbsp;                                    Iterator&lt;RedisURI&gt; iterator, RedisURI uri, AtomicReference&lt;Throwable&gt; lastException) {
+<b class="nc"><i>340</i>&nbsp;        RFuture&lt;List&lt;ClusterNodeInfo&gt;&gt; future = connection.async(clusterNodesCommand);</b>
+<b class="nc"><i>341</i>&nbsp;        future.onComplete((nodes, e) -&gt; {</b>
+<b class="nc"><i>342</i>&nbsp;            if (e != null) {</b>
+<b class="nc"><i>343</i>&nbsp;                log.error(&quot;Can&#39;t execute CLUSTER_NODES with &quot; + connection.getRedisClient().getAddr(), e);</b>
+<b class="nc"><i>344</i>&nbsp;                closeNodeConnection(connection);</b>
+<b class="nc"><i>345</i>&nbsp;                lastException.set(e);</b>
+<b class="nc"><i>346</i>&nbsp;                getShutdownLatch().release();</b>
+<b class="nc"><i>347</i>&nbsp;                checkClusterState(cfg, iterator, lastException);</b>
+<b class="nc"><i>348</i>&nbsp;                return;</b>
+<i>349</i>&nbsp;            }
+<i>350</i>&nbsp;
+<b class="nc"><i>351</i>&nbsp;            lastClusterNode = uri;</b>
+<i>352</i>&nbsp;
+<b class="nc"><i>353</i>&nbsp;            StringBuilder nodesValue = new StringBuilder();</b>
+<b class="nc"><i>354</i>&nbsp;            if (log.isDebugEnabled()) {</b>
+<b class="nc"><i>355</i>&nbsp;                for (ClusterNodeInfo clusterNodeInfo : nodes) {</b>
+<b class="nc"><i>356</i>&nbsp;                    nodesValue.append(clusterNodeInfo.getNodeInfo()).append(&quot;\n&quot;);</b>
+<b class="nc"><i>357</i>&nbsp;                }</b>
+<b class="nc"><i>358</i>&nbsp;                log.debug(&quot;cluster nodes state got from {}:\n{}&quot;, connection.getRedisClient().getAddr(), nodesValue);</b>
+<i>359</i>&nbsp;            }
+<i>360</i>&nbsp;
+<b class="nc"><i>361</i>&nbsp;            Collection&lt;ClusterPartition&gt; newPartitions = parsePartitions(nodes);</b>
+<b class="nc"><i>362</i>&nbsp;            RFuture&lt;Void&gt; masterFuture = checkMasterNodesChange(cfg, newPartitions);</b>
+<b class="nc"><i>363</i>&nbsp;            checkSlaveNodesChange(newPartitions);</b>
+<b class="nc"><i>364</i>&nbsp;            masterFuture.onComplete((res, ex) -&gt; {</b>
+<b class="nc"><i>365</i>&nbsp;                checkSlotsMigration(newPartitions);</b>
+<b class="nc"><i>366</i>&nbsp;                checkSlotsChange(cfg, newPartitions);</b>
+<b class="nc"><i>367</i>&nbsp;                getShutdownLatch().release();</b>
+<b class="nc"><i>368</i>&nbsp;                scheduleClusterChangeCheck(cfg, null);</b>
+<b class="nc"><i>369</i>&nbsp;            });</b>
+<b class="nc"><i>370</i>&nbsp;        });</b>
+<b class="nc"><i>371</i>&nbsp;    }</b>
+<i>372</i>&nbsp;
+<i>373</i>&nbsp;    private void checkSlaveNodesChange(Collection&lt;ClusterPartition&gt; newPartitions) {
+<b class="nc"><i>374</i>&nbsp;        Set&lt;ClusterPartition&gt; lastPartitions = getLastPartitions();</b>
+<b class="nc"><i>375</i>&nbsp;        for (ClusterPartition newPart : newPartitions) {</b>
+<b class="nc"><i>376</i>&nbsp;            for (ClusterPartition currentPart : lastPartitions) {</b>
+<b class="nc"><i>377</i>&nbsp;                if (!newPart.getMasterAddress().equals(currentPart.getMasterAddress())) {</b>
+<b class="nc"><i>378</i>&nbsp;                    continue;</b>
+<i>379</i>&nbsp;                }
+<i>380</i>&nbsp;
+<b class="nc"><i>381</i>&nbsp;                MasterSlaveEntry entry = getEntry(currentPart.slots().nextSetBit(0));</b>
+<i>382</i>&nbsp;                // should be invoked first in order to remove stale failedSlaveAddresses
+<b class="nc"><i>383</i>&nbsp;                Set&lt;RedisURI&gt; addedSlaves = addRemoveSlaves(entry, currentPart, newPart);</b>
+<i>384</i>&nbsp;                // Do some slaves have changed state from failed to alive?
+<b class="nc"><i>385</i>&nbsp;                upDownSlaves(entry, currentPart, newPart, addedSlaves);</b>
+<i>386</i>&nbsp;
+<b class="nc"><i>387</i>&nbsp;                break;</b>
+<i>388</i>&nbsp;            }
+<b class="nc"><i>389</i>&nbsp;        }</b>
+<b class="nc"><i>390</i>&nbsp;    }</b>
+<i>391</i>&nbsp;
+<i>392</i>&nbsp;    private void upDownSlaves(MasterSlaveEntry entry, ClusterPartition currentPart, ClusterPartition newPart, Set&lt;RedisURI&gt; addedSlaves) {
+<b class="nc"><i>393</i>&nbsp;        Set&lt;RedisURI&gt; aliveSlaves = new HashSet&lt;&gt;(currentPart.getFailedSlaveAddresses());</b>
+<b class="nc"><i>394</i>&nbsp;        aliveSlaves.removeAll(addedSlaves);</b>
+<b class="nc"><i>395</i>&nbsp;        aliveSlaves.removeAll(newPart.getFailedSlaveAddresses());</b>
+<b class="nc"><i>396</i>&nbsp;        for (RedisURI uri : aliveSlaves) {</b>
+<b class="nc"><i>397</i>&nbsp;            currentPart.removeFailedSlaveAddress(uri);</b>
+<b class="nc"><i>398</i>&nbsp;            if (entry.hasSlave(uri) &amp;&amp; entry.slaveUp(uri, FreezeReason.MANAGER)) {</b>
+<b class="nc"><i>399</i>&nbsp;                log.info(&quot;slave: {} has up for slot ranges: {}&quot;, uri, currentPart.getSlotRanges());</b>
+<i>400</i>&nbsp;            }
+<b class="nc"><i>401</i>&nbsp;        }</b>
+<i>402</i>&nbsp;
+<b class="nc"><i>403</i>&nbsp;        Set&lt;RedisURI&gt; failedSlaves = new HashSet&lt;&gt;(newPart.getFailedSlaveAddresses());</b>
+<b class="nc"><i>404</i>&nbsp;        failedSlaves.removeAll(currentPart.getFailedSlaveAddresses());</b>
+<b class="nc"><i>405</i>&nbsp;        for (RedisURI uri : failedSlaves) {</b>
+<b class="nc"><i>406</i>&nbsp;            currentPart.addFailedSlaveAddress(uri);</b>
+<b class="nc"><i>407</i>&nbsp;            if (entry.slaveDown(uri, FreezeReason.MANAGER)) {</b>
+<b class="nc"><i>408</i>&nbsp;                disconnectNode(uri);</b>
+<b class="nc"><i>409</i>&nbsp;                log.warn(&quot;slave: {} has down for slot ranges: {}&quot;, uri, currentPart.getSlotRanges());</b>
+<i>410</i>&nbsp;            }
+<b class="nc"><i>411</i>&nbsp;        }</b>
+<b class="nc"><i>412</i>&nbsp;    }</b>
+<i>413</i>&nbsp;
+<i>414</i>&nbsp;    private Set&lt;RedisURI&gt; addRemoveSlaves(MasterSlaveEntry entry, ClusterPartition currentPart, ClusterPartition newPart) {
+<b class="nc"><i>415</i>&nbsp;        Set&lt;RedisURI&gt; removedSlaves = new HashSet&lt;&gt;(currentPart.getSlaveAddresses());</b>
+<b class="nc"><i>416</i>&nbsp;        removedSlaves.removeAll(newPart.getSlaveAddresses());</b>
+<i>417</i>&nbsp;
+<b class="nc"><i>418</i>&nbsp;        for (RedisURI uri : removedSlaves) {</b>
+<b class="nc"><i>419</i>&nbsp;            currentPart.removeSlaveAddress(uri);</b>
+<i>420</i>&nbsp;
+<b class="nc"><i>421</i>&nbsp;            if (entry.slaveDown(uri, FreezeReason.MANAGER)) {</b>
+<b class="nc"><i>422</i>&nbsp;                log.info(&quot;slave {} removed for slot ranges: {}&quot;, uri, currentPart.getSlotRanges());</b>
+<i>423</i>&nbsp;            }
+<b class="nc"><i>424</i>&nbsp;        }</b>
+<i>425</i>&nbsp;
+<b class="nc"><i>426</i>&nbsp;        Set&lt;RedisURI&gt; addedSlaves = new HashSet&lt;&gt;(newPart.getSlaveAddresses());</b>
+<b class="nc"><i>427</i>&nbsp;        addedSlaves.removeAll(currentPart.getSlaveAddresses());</b>
+<b class="nc"><i>428</i>&nbsp;        for (RedisURI uri : addedSlaves) {</b>
+<b class="nc"><i>429</i>&nbsp;            RFuture&lt;Void&gt; future = entry.addSlave(uri);</b>
+<b class="nc"><i>430</i>&nbsp;            future.onComplete((res, ex) -&gt; {</b>
+<b class="nc"><i>431</i>&nbsp;                if (ex != null) {</b>
+<b class="nc"><i>432</i>&nbsp;                    log.error(&quot;Can&#39;t add slave: &quot; + uri, ex);</b>
+<b class="nc"><i>433</i>&nbsp;                    return;</b>
+<i>434</i>&nbsp;                }
+<i>435</i>&nbsp;
+<b class="nc"><i>436</i>&nbsp;                currentPart.addSlaveAddress(uri);</b>
+<b class="nc"><i>437</i>&nbsp;                entry.slaveUp(uri, FreezeReason.MANAGER);</b>
+<b class="nc"><i>438</i>&nbsp;                log.info(&quot;slave: {} added for slot ranges: {}&quot;, uri, currentPart.getSlotRanges());</b>
+<b class="nc"><i>439</i>&nbsp;            });</b>
+<b class="nc"><i>440</i>&nbsp;        }</b>
+<b class="nc"><i>441</i>&nbsp;        return addedSlaves;</b>
+<i>442</i>&nbsp;    }
+<i>443</i>&nbsp;
+<i>444</i>&nbsp;    private int slotsAmount(Collection&lt;ClusterPartition&gt; partitions) {
+<b class="nc"><i>445</i>&nbsp;        int result = 0;</b>
+<b class="nc"><i>446</i>&nbsp;        for (ClusterPartition clusterPartition : partitions) {</b>
+<b class="nc"><i>447</i>&nbsp;            result += clusterPartition.getSlotsAmount();</b>
+<b class="nc"><i>448</i>&nbsp;        }</b>
+<b class="nc"><i>449</i>&nbsp;        return result;</b>
+<i>450</i>&nbsp;    }
+<i>451</i>&nbsp;
+<i>452</i>&nbsp;    private ClusterPartition find(Collection&lt;ClusterPartition&gt; partitions, Integer slot) {
+<b class="nc"><i>453</i>&nbsp;        for (ClusterPartition clusterPartition : partitions) {</b>
+<b class="nc"><i>454</i>&nbsp;            if (clusterPartition.hasSlot(slot)) {</b>
+<b class="nc"><i>455</i>&nbsp;                return clusterPartition;</b>
+<i>456</i>&nbsp;            }
+<b class="nc"><i>457</i>&nbsp;        }</b>
+<b class="nc"><i>458</i>&nbsp;        return null;</b>
+<i>459</i>&nbsp;    }
+<i>460</i>&nbsp;
+<i>461</i>&nbsp;    private RFuture&lt;Void&gt; checkMasterNodesChange(ClusterServersConfig cfg, Collection&lt;ClusterPartition&gt; newPartitions) {
+<b class="nc"><i>462</i>&nbsp;        Set&lt;ClusterPartition&gt; lastPartitions = getLastPartitions();</b>
+<b class="nc"><i>463</i>&nbsp;        Map&lt;RedisURI, ClusterPartition&gt; addedPartitions = new HashMap&lt;&gt;();</b>
+<b class="nc"><i>464</i>&nbsp;        Set&lt;RedisURI&gt; mastersElected = new HashSet&lt;&gt;();</b>
+<b class="nc"><i>465</i>&nbsp;        for (ClusterPartition newPart : newPartitions) {</b>
+<b class="nc"><i>466</i>&nbsp;            boolean masterFound = false;</b>
+<b class="nc"><i>467</i>&nbsp;            for (ClusterPartition currentPart : lastPartitions) {</b>
+<b class="nc"><i>468</i>&nbsp;                if (!newPart.getMasterAddress().equals(currentPart.getMasterAddress())) {</b>
+<b class="nc"><i>469</i>&nbsp;                    continue;</b>
+<i>470</i>&nbsp;                }
+<b class="nc"><i>471</i>&nbsp;                masterFound = true;</b>
+<i>472</i>&nbsp;                // current master marked as failed
+<b class="nc"><i>473</i>&nbsp;                if (!newPart.isMasterFail() || newPart.getSlotsAmount() == 0) {</b>
+<b class="nc"><i>474</i>&nbsp;                    continue;</b>
+<i>475</i>&nbsp;                }
+<b class="nc"><i>476</i>&nbsp;                for (Integer slot : currentPart.getSlots()) {</b>
+<b class="nc"><i>477</i>&nbsp;                    ClusterPartition newMasterPart = find(newPartitions, slot);</b>
+<i>478</i>&nbsp;                    // does partition has a new master?
+<b class="nc"><i>479</i>&nbsp;                    if (!newMasterPart.getMasterAddress().equals(currentPart.getMasterAddress())) {</b>
+<b class="nc"><i>480</i>&nbsp;                        RedisURI newUri = newMasterPart.getMasterAddress();</b>
+<b class="nc"><i>481</i>&nbsp;                        RedisURI oldUri = currentPart.getMasterAddress();</b>
+<i>482</i>&nbsp;
+<b class="nc"><i>483</i>&nbsp;                        mastersElected.add(newUri);</b>
+<i>484</i>&nbsp;
+<b class="nc"><i>485</i>&nbsp;                        RFuture&lt;RedisClient&gt; future = changeMaster(slot, newUri);</b>
+<b class="nc"><i>486</i>&nbsp;                        currentPart.setMasterAddress(newUri);</b>
+<b class="nc"><i>487</i>&nbsp;                        future.onComplete((res, e) -&gt; {</b>
+<b class="nc"><i>488</i>&nbsp;                            if (e != null) {</b>
+<b class="nc"><i>489</i>&nbsp;                                currentPart.setMasterAddress(oldUri);</b>
+<i>490</i>&nbsp;                            } else {
+<b class="nc"><i>491</i>&nbsp;                                disconnectNode(oldUri);</b>
+<i>492</i>&nbsp;                            }
+<b class="nc"><i>493</i>&nbsp;                        });</b>
+<i>494</i>&nbsp;                    }
+<b class="nc"><i>495</i>&nbsp;                }</b>
+<b class="nc"><i>496</i>&nbsp;                break;</b>
+<i>497</i>&nbsp;            }
+<i>498</i>&nbsp;
+<b class="nc"><i>499</i>&nbsp;            if (!masterFound &amp;&amp; newPart.getSlotsAmount() &gt; 0) {</b>
+<b class="nc"><i>500</i>&nbsp;                addedPartitions.put(newPart.getMasterAddress(), newPart);</b>
+<i>501</i>&nbsp;            }
+<b class="nc"><i>502</i>&nbsp;        }</b>
+<i>503</i>&nbsp;
+<b class="nc"><i>504</i>&nbsp;        addedPartitions.keySet().removeAll(mastersElected);</b>
+<b class="nc"><i>505</i>&nbsp;        if (addedPartitions.isEmpty()) {</b>
+<b class="nc"><i>506</i>&nbsp;            return RedissonPromise.newSucceededFuture(null);</b>
+<i>507</i>&nbsp;        }
+<i>508</i>&nbsp;
+<b class="nc"><i>509</i>&nbsp;        RPromise&lt;Void&gt; result = new RedissonPromise&lt;Void&gt;();</b>
+<b class="nc"><i>510</i>&nbsp;        AtomicInteger masters = new AtomicInteger(addedPartitions.size());</b>
+<b class="nc"><i>511</i>&nbsp;        Queue&lt;RFuture&lt;Void&gt;&gt; futures = new ConcurrentLinkedQueue&lt;RFuture&lt;Void&gt;&gt;();</b>
+<b class="nc"><i>512</i>&nbsp;        for (ClusterPartition newPart : addedPartitions.values()) {</b>
+<b class="nc"><i>513</i>&nbsp;            RFuture&lt;Collection&lt;RFuture&lt;Void&gt;&gt;&gt; future = addMasterEntry(newPart, cfg);</b>
+<b class="nc"><i>514</i>&nbsp;            future.onComplete((res, e) -&gt; {</b>
+<b class="nc"><i>515</i>&nbsp;                if (e == null) {</b>
+<b class="nc"><i>516</i>&nbsp;                    futures.addAll(res);</b>
+<i>517</i>&nbsp;                }
+<i>518</i>&nbsp;
+<b class="nc"><i>519</i>&nbsp;                if (masters.decrementAndGet() == 0) {</b>
+<b class="nc"><i>520</i>&nbsp;                    if (futures.isEmpty()) {</b>
+<b class="nc"><i>521</i>&nbsp;                        result.trySuccess(null);</b>
+<b class="nc"><i>522</i>&nbsp;                        return;</b>
+<i>523</i>&nbsp;                    }
+<i>524</i>&nbsp;
+<b class="nc"><i>525</i>&nbsp;                    AtomicInteger nodes = new AtomicInteger(futures.size());</b>
+<b class="nc"><i>526</i>&nbsp;                    for (RFuture&lt;Void&gt; nodeFuture : futures) {</b>
+<b class="nc"><i>527</i>&nbsp;                        nodeFuture.onComplete((r, ex) -&gt; {</b>
+<b class="nc"><i>528</i>&nbsp;                            if (nodes.decrementAndGet() == 0) {</b>
+<b class="nc"><i>529</i>&nbsp;                                result.trySuccess(null);</b>
+<i>530</i>&nbsp;                            }
+<b class="nc"><i>531</i>&nbsp;                        });</b>
+<b class="nc"><i>532</i>&nbsp;                    }</b>
+<i>533</i>&nbsp;                }
+<b class="nc"><i>534</i>&nbsp;            });</b>
+<b class="nc"><i>535</i>&nbsp;        }</b>
+<b class="nc"><i>536</i>&nbsp;        return result;</b>
+<i>537</i>&nbsp;    }
+<i>538</i>&nbsp;
+<i>539</i>&nbsp;    private void checkSlotsChange(ClusterServersConfig cfg, Collection&lt;ClusterPartition&gt; newPartitions) {
+<b class="nc"><i>540</i>&nbsp;        int newSlotsAmount = slotsAmount(newPartitions);</b>
+<b class="nc"><i>541</i>&nbsp;        if (newSlotsAmount == lastPartitions.size() &amp;&amp; lastPartitions.size() == MAX_SLOT) {</b>
+<b class="nc"><i>542</i>&nbsp;            return;</b>
+<i>543</i>&nbsp;        }
+<i>544</i>&nbsp;
+<b class="nc"><i>545</i>&nbsp;        Set&lt;Integer&gt; removedSlots = new HashSet&lt;&gt;();</b>
+<b class="nc"><i>546</i>&nbsp;        for (Integer slot : lastPartitions.keySet()) {</b>
+<b class="nc"><i>547</i>&nbsp;            boolean found = false;</b>
+<b class="nc"><i>548</i>&nbsp;            for (ClusterPartition clusterPartition : newPartitions) {</b>
+<b class="nc"><i>549</i>&nbsp;                if (clusterPartition.hasSlot(slot)) {</b>
+<b class="nc"><i>550</i>&nbsp;                    found = true;</b>
+<b class="nc"><i>551</i>&nbsp;                    break;</b>
+<i>552</i>&nbsp;                }
+<b class="nc"><i>553</i>&nbsp;            }</b>
+<b class="nc"><i>554</i>&nbsp;            if (!found) {</b>
+<b class="nc"><i>555</i>&nbsp;                removedSlots.add(slot);</b>
+<i>556</i>&nbsp;            }
+<b class="nc"><i>557</i>&nbsp;        }</b>
+<b class="nc"><i>558</i>&nbsp;        lastPartitions.keySet().removeAll(removedSlots);</b>
+<b class="nc"><i>559</i>&nbsp;        if (!removedSlots.isEmpty()) {</b>
+<b class="nc"><i>560</i>&nbsp;            log.info(&quot;{} slots found to remove&quot;, removedSlots.size());</b>
+<i>561</i>&nbsp;        }
+<i>562</i>&nbsp;
+<b class="nc"><i>563</i>&nbsp;        for (Integer slot : removedSlots) {</b>
+<b class="nc"><i>564</i>&nbsp;            removeEntry(slot);</b>
+<b class="nc"><i>565</i>&nbsp;        }</b>
+<i>566</i>&nbsp;
+<b class="nc"><i>567</i>&nbsp;        Integer addedSlots = 0;</b>
+<b class="nc"><i>568</i>&nbsp;        for (ClusterPartition clusterPartition : newPartitions) {</b>
+<b class="nc"><i>569</i>&nbsp;            MasterSlaveEntry entry = getEntry(clusterPartition.getMasterAddress());</b>
+<b class="nc"><i>570</i>&nbsp;            for (Integer slot : clusterPartition.getSlots()) {</b>
+<b class="nc"><i>571</i>&nbsp;                if (lastPartitions.containsKey(slot)) {</b>
+<b class="nc"><i>572</i>&nbsp;                    continue;</b>
+<i>573</i>&nbsp;                }
+<i>574</i>&nbsp;
+<b class="nc"><i>575</i>&nbsp;                if (entry != null) {</b>
+<b class="nc"><i>576</i>&nbsp;                    addEntry(slot, entry);</b>
+<b class="nc"><i>577</i>&nbsp;                    lastPartitions.put(slot, clusterPartition);</b>
+<b class="nc"><i>578</i>&nbsp;                    addedSlots++;</b>
+<i>579</i>&nbsp;                }
+<b class="nc"><i>580</i>&nbsp;            }</b>
+<b class="nc"><i>581</i>&nbsp;        }</b>
+<b class="nc"><i>582</i>&nbsp;        if (addedSlots &gt; 0) {</b>
+<b class="nc"><i>583</i>&nbsp;            log.info(&quot;{} slots found to add&quot;, addedSlots);</b>
+<i>584</i>&nbsp;        }
+<b class="nc"><i>585</i>&nbsp;    }</b>
+<i>586</i>&nbsp;
+<i>587</i>&nbsp;    private void checkSlotsMigration(Collection&lt;ClusterPartition&gt; newPartitions) {
+<b class="nc"><i>588</i>&nbsp;        for (ClusterPartition currentPartition : getLastPartitions()) {</b>
+<b class="nc"><i>589</i>&nbsp;            for (ClusterPartition newPartition : newPartitions) {</b>
+<b class="nc"><i>590</i>&nbsp;                if (!currentPartition.getNodeId().equals(newPartition.getNodeId())) {</b>
+<b class="nc"><i>591</i>&nbsp;                    continue;</b>
+<i>592</i>&nbsp;                }
+<i>593</i>&nbsp;
+<b class="nc"><i>594</i>&nbsp;                MasterSlaveEntry entry = getEntry(currentPartition.slots().nextSetBit(0));</b>
+<b class="nc"><i>595</i>&nbsp;                BitSet addedSlots = newPartition.copySlots();</b>
+<b class="nc"><i>596</i>&nbsp;                addedSlots.andNot(currentPartition.slots());</b>
+<b class="nc"><i>597</i>&nbsp;                currentPartition.addSlots(addedSlots);</b>
+<i>598</i>&nbsp;
+<b class="nc"><i>599</i>&nbsp;                for (Integer slot : (Iterable&lt;Integer&gt;) addedSlots.stream()::iterator) {</b>
+<b class="nc"><i>600</i>&nbsp;                    addEntry(slot, entry);</b>
+<b class="nc"><i>601</i>&nbsp;                    lastPartitions.put(slot, currentPartition);</b>
+<b class="nc"><i>602</i>&nbsp;                }</b>
+<b class="nc"><i>603</i>&nbsp;                if (!addedSlots.isEmpty()) {</b>
+<b class="nc"><i>604</i>&nbsp;                    log.info(&quot;{} slots added to {}&quot;, addedSlots.cardinality(), currentPartition.getMasterAddress());</b>
+<i>605</i>&nbsp;                }
+<i>606</i>&nbsp;
+<b class="nc"><i>607</i>&nbsp;                BitSet removedSlots = currentPartition.copySlots();</b>
+<b class="nc"><i>608</i>&nbsp;                removedSlots.andNot(newPartition.slots());</b>
+<b class="nc"><i>609</i>&nbsp;                currentPartition.removeSlots(removedSlots);</b>
+<i>610</i>&nbsp;
+<b class="nc"><i>611</i>&nbsp;                for (Integer removeSlot : (Iterable&lt;Integer&gt;) removedSlots.stream()::iterator) {</b>
+<b class="nc"><i>612</i>&nbsp;                    if (lastPartitions.remove(removeSlot, currentPartition)) {</b>
+<b class="nc"><i>613</i>&nbsp;                        removeEntry(removeSlot);</b>
+<i>614</i>&nbsp;                    }
+<b class="nc"><i>615</i>&nbsp;                }</b>
+<i>616</i>&nbsp;
+<b class="nc"><i>617</i>&nbsp;                if (!removedSlots.isEmpty()) {</b>
+<b class="nc"><i>618</i>&nbsp;                    log.info(&quot;{} slots removed from {}&quot;, removedSlots.cardinality(), currentPartition.getMasterAddress());</b>
+<i>619</i>&nbsp;                }
+<i>620</i>&nbsp;                break;
+<i>621</i>&nbsp;            }
+<b class="nc"><i>622</i>&nbsp;        }</b>
+<b class="nc"><i>623</i>&nbsp;    }</b>
+<i>624</i>&nbsp;
+<i>625</i>&nbsp;    public String getConfigEndpointHostName() {
+<b class="fc"><i>626</i>&nbsp;        return configEndpointHostName;</b>
+<i>627</i>&nbsp;    }
+<i>628</i>&nbsp;
+<i>629</i>&nbsp;    private int indexOf(byte[] array, byte element) {
+<b class="nc"><i>630</i>&nbsp;        for (int i = 0; i &lt; array.length; ++i) {</b>
+<b class="nc"><i>631</i>&nbsp;            if (array[i] == element) {</b>
+<b class="nc"><i>632</i>&nbsp;                return i;</b>
+<i>633</i>&nbsp;            }
+<i>634</i>&nbsp;        }
+<b class="nc"><i>635</i>&nbsp;        return -1;</b>
+<i>636</i>&nbsp;    }
+<i>637</i>&nbsp;
+<i>638</i>&nbsp;    @Override
+<i>639</i>&nbsp;    public int calcSlot(byte[] key) {
+<b class="nc"><i>640</i>&nbsp;        if (key == null) {</b>
+<b class="nc"><i>641</i>&nbsp;            return 0;</b>
+<i>642</i>&nbsp;        }
+<i>643</i>&nbsp;
+<b class="nc"><i>644</i>&nbsp;        int start = indexOf(key, (byte) &#39;{&#39;);</b>
+<b class="nc"><i>645</i>&nbsp;        if (start != -1) {</b>
+<b class="nc"><i>646</i>&nbsp;            int end = indexOf(key, (byte) &#39;}&#39;);</b>
+<b class="nc"><i>647</i>&nbsp;            key = Arrays.copyOfRange(key, start+1, end);</b>
+<i>648</i>&nbsp;        }
+<i>649</i>&nbsp;
+<b class="nc"><i>650</i>&nbsp;        int result = CRC16.crc16(key) % MAX_SLOT;</b>
+<b class="nc"><i>651</i>&nbsp;        return result;</b>
+<i>652</i>&nbsp;    }
+<i>653</i>&nbsp;
+<i>654</i>&nbsp;    @Override
+<i>655</i>&nbsp;    public int calcSlot(String key) {
+<b class="fc"><i>656</i>&nbsp;        if (key == null) {</b>
+<b class="fc"><i>657</i>&nbsp;            return 0;</b>
+<i>658</i>&nbsp;        }
+<i>659</i>&nbsp;
+<b class="nc"><i>660</i>&nbsp;        int start = key.indexOf(&#39;{&#39;);</b>
+<b class="nc"><i>661</i>&nbsp;        if (start != -1) {</b>
+<b class="nc"><i>662</i>&nbsp;            int end = key.indexOf(&#39;}&#39;);</b>
+<b class="nc"><i>663</i>&nbsp;            key = key.substring(start+1, end);</b>
+<i>664</i>&nbsp;        }
+<i>665</i>&nbsp;
+<b class="nc"><i>666</i>&nbsp;        int result = CRC16.crc16(key.getBytes()) % MAX_SLOT;</b>
+<b class="nc"><i>667</i>&nbsp;        log.debug(&quot;slot {} for {}&quot;, result, key);</b>
+<b class="nc"><i>668</i>&nbsp;        return result;</b>
+<i>669</i>&nbsp;    }
+<i>670</i>&nbsp;
+<i>671</i>&nbsp;    @Override
+<i>672</i>&nbsp;    public RedisURI applyNatMap(RedisURI address) {
+<b class="fc"><i>673</i>&nbsp;        return natMapper.map(address);</b>
+<i>674</i>&nbsp;    }
+<i>675</i>&nbsp;
+<i>676</i>&nbsp;    private Collection&lt;ClusterPartition&gt; parsePartitions(List&lt;ClusterNodeInfo&gt; nodes) {
+<b class="fc"><i>677</i>&nbsp;        Map&lt;String, ClusterPartition&gt; partitions = new HashMap&lt;String, ClusterPartition&gt;();</b>
+<b class="fc"><i>678</i>&nbsp;        for (ClusterNodeInfo clusterNodeInfo : nodes) {</b>
+<b class="fc"><i>679</i>&nbsp;            if (clusterNodeInfo.containsFlag(Flag.NOADDR) || clusterNodeInfo.containsFlag(Flag.HANDSHAKE)) {</b>
+<i>680</i>&nbsp;                // skip it
+<b class="nc"><i>681</i>&nbsp;                continue;</b>
+<i>682</i>&nbsp;            }
+<i>683</i>&nbsp;
+<b class="fc"><i>684</i>&nbsp;            String masterId = clusterNodeInfo.getNodeId();</b>
+<b class="fc"><i>685</i>&nbsp;            if (clusterNodeInfo.containsFlag(Flag.SLAVE)) {</b>
+<b class="fc"><i>686</i>&nbsp;                masterId = clusterNodeInfo.getSlaveOf();</b>
+<i>687</i>&nbsp;            }
+<i>688</i>&nbsp;
+<b class="fc"><i>689</i>&nbsp;            if (masterId == null) {</b>
+<i>690</i>&nbsp;                // skip it
+<b class="nc"><i>691</i>&nbsp;                continue;</b>
+<i>692</i>&nbsp;            }
+<i>693</i>&nbsp;
+<b class="fc"><i>694</i>&nbsp;            RedisURI address = applyNatMap(clusterNodeInfo.getAddress());</b>
+<b class="fc"><i>695</i>&nbsp;            if (clusterNodeInfo.containsFlag(Flag.SLAVE)) {</b>
+<b class="fc"><i>696</i>&nbsp;                ClusterPartition masterPartition = getPartition(partitions, masterId);</b>
+<b class="fc"><i>697</i>&nbsp;                ClusterPartition slavePartition = getPartition(partitions, clusterNodeInfo.getNodeId());</b>
+<b class="fc"><i>698</i>&nbsp;                slavePartition.setType(Type.SLAVE);</b>
+<b class="fc"><i>699</i>&nbsp;                slavePartition.setParent(masterPartition);</b>
+<i>700</i>&nbsp;
+<b class="fc"><i>701</i>&nbsp;                masterPartition.addSlaveAddress(address);</b>
+<b class="fc"><i>702</i>&nbsp;                if (clusterNodeInfo.containsFlag(Flag.FAIL)) {</b>
+<b class="nc"><i>703</i>&nbsp;                    masterPartition.addFailedSlaveAddress(address);</b>
+<i>704</i>&nbsp;                }
+<b class="fc"><i>705</i>&nbsp;            } else if (clusterNodeInfo.containsFlag(Flag.MASTER)) {</b>
+<b class="fc"><i>706</i>&nbsp;                ClusterPartition masterPartition = getPartition(partitions, masterId);</b>
+<b class="fc"><i>707</i>&nbsp;                masterPartition.addSlotRanges(clusterNodeInfo.getSlotRanges());</b>
+<b class="fc"><i>708</i>&nbsp;                masterPartition.setMasterAddress(address);</b>
+<b class="fc"><i>709</i>&nbsp;                masterPartition.setType(Type.MASTER);</b>
+<b class="fc"><i>710</i>&nbsp;                if (clusterNodeInfo.containsFlag(Flag.FAIL)) {</b>
+<b class="nc"><i>711</i>&nbsp;                    masterPartition.setMasterFail(true);</b>
+<i>712</i>&nbsp;                }
+<i>713</i>&nbsp;            }
+<b class="fc"><i>714</i>&nbsp;        }</b>
+<i>715</i>&nbsp;
+<b class="fc"><i>716</i>&nbsp;        addCascadeSlaves(partitions);</b>
+<i>717</i>&nbsp;
+<b class="fc"><i>718</i>&nbsp;        return partitions.values();</b>
+<i>719</i>&nbsp;    }
+<i>720</i>&nbsp;
+<i>721</i>&nbsp;    private void addCascadeSlaves(Map&lt;String, ClusterPartition&gt; partitions) {
+<b class="fc"><i>722</i>&nbsp;        Iterator&lt;ClusterPartition&gt; iter = partitions.values().iterator();</b>
+<b class="fc"><i>723</i>&nbsp;        while (iter.hasNext()) {</b>
+<b class="fc"><i>724</i>&nbsp;            ClusterPartition cp = iter.next();</b>
+<b class="fc"><i>725</i>&nbsp;            if (cp.getType() != Type.SLAVE) {</b>
+<b class="fc"><i>726</i>&nbsp;                continue;</b>
+<i>727</i>&nbsp;            }
+<i>728</i>&nbsp;
+<b class="fc"><i>729</i>&nbsp;            if (cp.getParent() != null &amp;&amp; cp.getParent().getType() == Type.MASTER) {</b>
+<b class="fc"><i>730</i>&nbsp;                ClusterPartition parent = cp.getParent();</b>
+<b class="fc"><i>731</i>&nbsp;                for (RedisURI addr : cp.getSlaveAddresses()) {</b>
+<b class="nc"><i>732</i>&nbsp;                    parent.addSlaveAddress(addr);</b>
+<b class="nc"><i>733</i>&nbsp;                }</b>
+<b class="fc"><i>734</i>&nbsp;                for (RedisURI addr : cp.getFailedSlaveAddresses()) {</b>
+<b class="nc"><i>735</i>&nbsp;                    parent.addFailedSlaveAddress(addr);</b>
+<b class="nc"><i>736</i>&nbsp;                }</b>
+<i>737</i>&nbsp;            }
+<b class="fc"><i>738</i>&nbsp;            iter.remove();</b>
+<b class="fc"><i>739</i>&nbsp;        }</b>
+<b class="fc"><i>740</i>&nbsp;    }</b>
+<i>741</i>&nbsp;
+<i>742</i>&nbsp;    private ClusterPartition getPartition(Map&lt;String, ClusterPartition&gt; partitions, String id) {
+<b class="fc"><i>743</i>&nbsp;        ClusterPartition partition = partitions.get(id);</b>
+<b class="fc"><i>744</i>&nbsp;        if (partition == null) {</b>
+<b class="fc"><i>745</i>&nbsp;            partition = new ClusterPartition(id);</b>
+<b class="fc"><i>746</i>&nbsp;            partitions.put(id, partition);</b>
+<i>747</i>&nbsp;        }
+<b class="fc"><i>748</i>&nbsp;        return partition;</b>
+<i>749</i>&nbsp;    }
+<i>750</i>&nbsp;
+<i>751</i>&nbsp;    @Override
+<i>752</i>&nbsp;    public void shutdown() {
+<b class="fc"><i>753</i>&nbsp;        if (monitorFuture != null) {</b>
+<b class="fc"><i>754</i>&nbsp;            monitorFuture.cancel(true);</b>
+<i>755</i>&nbsp;        }
+<i>756</i>&nbsp;
+<b class="fc"><i>757</i>&nbsp;        closeNodeConnections();</b>
+<b class="fc"><i>758</i>&nbsp;        super.shutdown();</b>
+<b class="fc"><i>759</i>&nbsp;    }</b>
+<i>760</i>&nbsp;
+<i>761</i>&nbsp;    private Set&lt;ClusterPartition&gt; getLastPartitions() {
+<b class="nc"><i>762</i>&nbsp;        return new HashSet&lt;&gt;(lastPartitions.values());</b>
+<i>763</i>&nbsp;    }
+<i>764</i>&nbsp;
+<i>765</i>&nbsp;    @Override
+<i>766</i>&nbsp;    public RedisURI getLastClusterNode() {
+<b class="nc"><i>767</i>&nbsp;        return lastClusterNode;</b>
+<i>768</i>&nbsp;    }
+<i>769</i>&nbsp;
+<i>770</i>&nbsp;    @Override
+<i>771</i>&nbsp;    public boolean isClusterMode() {
+<b class="nc"><i>772</i>&nbsp;        return true;</b>
+<i>773</i>&nbsp;    }
+<i>774</i>&nbsp;
+<i>775</i>&nbsp;}
+<i>776</i>&nbsp;
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2021-06-30 09:31</div>
+</div>
+</body>
+</html>

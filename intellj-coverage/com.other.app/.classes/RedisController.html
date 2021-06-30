@@ -1,0 +1,117 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: RedisController</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">com.other.app</a> ]
+</div>
+
+<h1>Coverage Summary for Class: RedisController (com.other.app)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">RedisController</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (3/ 3)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (10/ 10)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;package com.other.app;
+<i>2</i>&nbsp;
+<i>3</i>&nbsp;import org.slf4j.Logger;
+<i>4</i>&nbsp;import org.slf4j.LoggerFactory;
+<i>5</i>&nbsp;import org.springframework.beans.factory.annotation.Autowired;
+<i>6</i>&nbsp;import org.springframework.beans.factory.annotation.Qualifier;
+<i>7</i>&nbsp;import org.springframework.data.redis.core.RedisTemplate;
+<i>8</i>&nbsp;import org.springframework.web.bind.annotation.GetMapping;
+<i>9</i>&nbsp;import org.springframework.web.bind.annotation.RestController;
+<i>10</i>&nbsp;
+<i>11</i>&nbsp;@RestController
+<b class="fc"><i>12</i>&nbsp;public class RedisController {</b>
+<b class="fc"><i>13</i>&nbsp;    private final static Logger logger = LoggerFactory.getLogger(MultiRedisApplication.class);</b>
+<i>14</i>&nbsp;
+<i>15</i>&nbsp;    @Autowired
+<i>16</i>&nbsp;    @Qualifier(&quot;redisTemplate&quot;)
+<i>17</i>&nbsp;    private RedisTemplate masterRedisTemplate;
+<i>18</i>&nbsp;
+<i>19</i>&nbsp;    @GetMapping(&quot;/redis&quot;)
+<i>20</i>&nbsp;    public String run() throws Exception {
+<i>21</i>&nbsp;
+<b class="fc"><i>22</i>&nbsp;        masterRedisTemplate.opsForValue().set(&quot;hello&quot;, &quot;world_1&quot;);</b>
+<i>23</i>&nbsp;
+<b class="fc"><i>24</i>&nbsp;        String primaryKeyValue = masterRedisTemplate.opsForValue().get(&quot;hello&quot;).toString();</b>
+<b class="fc"><i>25</i>&nbsp;        String secondaryKeyValue = masterRedisTemplate.opsForValue().get(&quot;hello&quot;).toString();</b>
+<i>26</i>&nbsp;
+<b class="fc"><i>27</i>&nbsp;        logger.info(&quot;==================================================================&quot;);</b>
+<b class="fc"><i>28</i>&nbsp;        logger.info(String.format(&quot;read the primary redis, key is `hello`, value is %s&quot;, primaryKeyValue));</b>
+<b class="fc"><i>29</i>&nbsp;        logger.info(String.format(&quot;read the secondary redis, key is `hello`, value is %s&quot;, secondaryKeyValue));</b>
+<b class="fc"><i>30</i>&nbsp;        logger.info(&quot;==================================================================&quot;);</b>
+<i>31</i>&nbsp;
+<b class="fc"><i>32</i>&nbsp;        return &quot;read the primary redis, key is `hello`, value is &quot; + primaryKeyValue;</b>
+<i>33</i>&nbsp;    }
+<i>34</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2021-06-30 09:31</div>
+</div>
+</body>
+</html>

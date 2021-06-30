@@ -1,0 +1,139 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: RedisFailoverAutoConfiguration</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">com.microsoft.aa.redis.config</a> ]
+</div>
+
+<h1>Coverage Summary for Class: RedisFailoverAutoConfiguration (com.microsoft.aa.redis.config)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+</tr>
+  <tr>
+    <td class="name">RedisFailoverAutoConfiguration$$EnhancerBySpringCGLIB$$1fd9a765</td>
+  </tr>
+  <tr>
+    <td class="name">RedisFailoverAutoConfiguration$$EnhancerBySpringCGLIB$$1fd9a765$$FastClassBySpringCGLIB$$20d0286</td>
+  </tr>
+  <tr>
+    <td class="name">RedisFailoverAutoConfiguration$$FastClassBySpringCGLIB$$76d58192</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;package com.microsoft.aa.redis.config;
+<i>2</i>&nbsp;
+<i>3</i>&nbsp;import com.fasterxml.jackson.annotation.JsonAutoDetect;
+<i>4</i>&nbsp;import com.fasterxml.jackson.annotation.PropertyAccessor;
+<i>5</i>&nbsp;import com.fasterxml.jackson.databind.ObjectMapper;
+<i>6</i>&nbsp;import com.microsoft.aa.redis.property.BackupRedisProperty;
+<i>7</i>&nbsp;import com.microsoft.aa.redis.property.MasterRedisProperty;
+<i>8</i>&nbsp;import org.redisson.Redisson;
+<i>9</i>&nbsp;import org.redisson.api.RedissonClient;
+<i>10</i>&nbsp;import org.redisson.config.Config;
+<i>11</i>&nbsp;import org.redisson.config.ReadMode;
+<i>12</i>&nbsp;import org.redisson.connection.balancer.RoundRobinLoadBalancer;
+<i>13</i>&nbsp;import org.redisson.spring.data.connection.RedissonConnectionFactory;
+<i>14</i>&nbsp;import org.springframework.beans.factory.annotation.Autowired;
+<i>15</i>&nbsp;import org.springframework.boot.context.properties.EnableConfigurationProperties;
+<i>16</i>&nbsp;import org.springframework.context.annotation.Bean;
+<i>17</i>&nbsp;import org.springframework.context.annotation.ComponentScan;
+<i>18</i>&nbsp;import org.springframework.context.annotation.Configuration;
+<i>19</i>&nbsp;import org.springframework.data.redis.core.RedisTemplate;
+<i>20</i>&nbsp;import org.springframework.data.redis.core.StringRedisTemplate;
+<i>21</i>&nbsp;import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
+<i>22</i>&nbsp;import org.springframework.scheduling.annotation.EnableScheduling;
+<i>23</i>&nbsp;
+<i>24</i>&nbsp;import java.io.IOException;
+<i>25</i>&nbsp;
+<i>26</i>&nbsp;@Configuration
+<i>27</i>&nbsp;@ComponentScan(basePackages = {&quot;com.microsoft.aa.redis.config&quot;})
+<i>28</i>&nbsp;@EnableConfigurationProperties({BackupRedisProperty.class, MasterRedisProperty.class})
+<i>29</i>&nbsp;@EnableScheduling
+<i>30</i>&nbsp;public class RedisFailoverAutoConfiguration {
+<i>31</i>&nbsp;
+<i>32</i>&nbsp;    @Autowired
+<i>33</i>&nbsp;    MasterRedisProperty masterRedisProperty;
+<i>34</i>&nbsp;
+<i>35</i>&nbsp;
+<i>36</i>&nbsp;    @Bean(&quot;redisConfig&quot;)
+<i>37</i>&nbsp;    public Config redisConfig()throws  IOException{
+<i>38</i>&nbsp;        Config config = new Config();
+<i>39</i>&nbsp;        config.useClusterServers()
+<i>40</i>&nbsp;                .setPassword(masterRedisProperty.getPassword())
+<i>41</i>&nbsp;                .setReadMode(ReadMode.MASTER)
+<i>42</i>&nbsp;                .setIdleConnectionTimeout(masterRedisProperty.getIdleConnectionTimeout())
+<i>43</i>&nbsp;                .setConnectTimeout(masterRedisProperty.getConnectTimeout())
+<i>44</i>&nbsp;                .setTimeout(masterRedisProperty.getTimeout())
+<i>45</i>&nbsp;                .setScanInterval(masterRedisProperty.getScanInterval())
+<i>46</i>&nbsp;                .setRetryAttempts(masterRedisProperty.getAttempts())
+<i>47</i>&nbsp;                .setRetryInterval(masterRedisProperty.getInterval())
+<i>48</i>&nbsp;                .setLoadBalancer(new RoundRobinLoadBalancer())
+<i>49</i>&nbsp;                // 主节点变化扫描间隔时间
+<i>50</i>&nbsp;                .setScanInterval(masterRedisProperty.getScanInterval())
+<i>51</i>&nbsp;                .addNodeAddress(masterRedisProperty.getNodes());
+<i>52</i>&nbsp;        return config;
+<i>53</i>&nbsp;    }
+<i>54</i>&nbsp;
+<i>55</i>&nbsp;    @Bean(&quot;redissonClient&quot;)
+<i>56</i>&nbsp;    public RedissonClient redissonClient(Config config) throws IOException {
+<i>57</i>&nbsp;        RedissonClient redissonClient = Redisson.create(config);
+<i>58</i>&nbsp;        return redissonClient;
+<i>59</i>&nbsp;    }
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;    @Bean(&quot;redissonConnectionFactory&quot;)
+<i>62</i>&nbsp;    public RedissonConnectionFactory redissonConnectionFactory(RedissonClient redissonClient) {
+<i>63</i>&nbsp;        return new RedissonConnectionFactory(redissonClient);
+<i>64</i>&nbsp;    }
+<i>65</i>&nbsp;
+<i>66</i>&nbsp;    @Bean(&quot;redisTemplate&quot;)
+<i>67</i>&nbsp;    public RedisTemplate&lt;String, String&gt; redisTemplate(RedissonConnectionFactory factory) {
+<i>68</i>&nbsp;        StringRedisTemplate template = new StringRedisTemplate(factory);
+<i>69</i>&nbsp;        setSerializer(template);//设置序列化工具
+<i>70</i>&nbsp;        template.afterPropertiesSet();
+<i>71</i>&nbsp;        return template;
+<i>72</i>&nbsp;    }
+<i>73</i>&nbsp;
+<i>74</i>&nbsp;    private void setSerializer(StringRedisTemplate template) {
+<i>75</i>&nbsp;        Jackson2JsonRedisSerializer jackson2JsonRedisSerializer = new Jackson2JsonRedisSerializer(Object.class);
+<i>76</i>&nbsp;        ObjectMapper om = new ObjectMapper();
+<i>77</i>&nbsp;        om.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);
+<i>78</i>&nbsp;        om.enableDefaultTyping(ObjectMapper.DefaultTyping.NON_FINAL);
+<i>79</i>&nbsp;        jackson2JsonRedisSerializer.setObjectMapper(om);
+<i>80</i>&nbsp;        template.setValueSerializer(jackson2JsonRedisSerializer);
+<i>81</i>&nbsp;    }
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2021-06-30 09:31</div>
+</div>
+</body>
+</html>
