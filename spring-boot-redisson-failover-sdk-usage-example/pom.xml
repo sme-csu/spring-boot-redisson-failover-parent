@@ -22,11 +22,15 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <java.version>1.8</java.version>
-        <maven.compiler.source>1.8</maven.compiler.source>
-        <maven.compiler.target>1.8</maven.compiler.target>
     </properties>
 
     <dependencies>
+
+        <dependency>
+            <groupId>com.microsoft.redission</groupId>
+            <artifactId>spring-boot-redisson-failover-sdk</artifactId>
+            <version>1.0.1.RELEASE</version>
+        </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
@@ -46,20 +50,8 @@
         </dependency>
 
         <dependency>
-            <groupId>org.redisson</groupId>
-            <artifactId>redisson-spring-boot-starter</artifactId>
-            <version>3.13.2</version>
-        </dependency>
-
-        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>com.microsoft.redission</groupId>
-            <artifactId>spring-boot-redisson-failover-sdk</artifactId>
-            <version>1.0.0.RELEASE</version>
         </dependency>
 
         <dependency>

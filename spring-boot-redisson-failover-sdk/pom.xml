@@ -5,7 +5,19 @@
 
     <groupId>com.microsoft.redission</groupId>
     <artifactId>spring-boot-redisson-failover-sdk</artifactId>
-    <version>1.0.0.RELEASE</version>
+    <version>1.0.1.RELEASE</version>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>8</source>
+                    <target>8</target>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
     <packaging>jar</packaging>
 
     <name>spring-boot-redisson-failover-sdk</name>
@@ -15,8 +27,6 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <java.version>1.8</java.version>
-        <maven.compiler.source>1.8</maven.compiler.source>
-        <maven.compiler.target>1.8</maven.compiler.target>
     </properties>
 
     <dependencies>
@@ -50,6 +60,7 @@
             <artifactId>redisson-spring-boot-starter</artifactId>
             <version>3.13.2</version>
         </dependency>
+
     </dependencies>
 
 </project>

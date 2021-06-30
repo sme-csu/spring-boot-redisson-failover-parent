@@ -26,7 +26,7 @@ import java.io.IOException;
 @Configuration
 @ComponentScan(basePackages = {"com.microsoft.aa.redis.config"})
 @EnableConfigurationProperties({BackupRedisProperty.class, MasterRedisProperty.class})
-@EnableScheduling
+//@EnableScheduling
 public class RedisFailoverAutoConfiguration {
 
     @Autowired
