@@ -19,6 +19,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.StringRedisSerializer;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.io.IOException;
@@ -26,7 +27,7 @@ import java.io.IOException;
 @Configuration
 @ComponentScan(basePackages = {"com.microsoft.aa.redis.config"})
 @EnableConfigurationProperties({BackupRedisProperty.class, MasterRedisProperty.class})
-//@EnableScheduling
+@EnableScheduling
 public class RedisFailoverAutoConfiguration {
 
     @Autowired
@@ -72,12 +73,9 @@ public class RedisFailoverAutoConfiguration {
     }
 
     private void setSerializer(StringRedisTemplate template) {
-        Jackson2JsonRedisSerializer jackson2JsonRedisSerializer = new Jackson2JsonRedisSerializer(Object.class);
-        ObjectMapper om = new ObjectMapper();
-        om.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);
-        om.enableDefaultTyping(ObjectMapper.DefaultTyping.NON_FINAL);
-        jackson2JsonRedisSerializer.setObjectMapper(om);
-        template.setValueSerializer(jackson2JsonRedisSerializer);
+        StringRedisSerializer defaultSerializer = new StringRedisSerializer();
+        template.setKeySerializer(defaultSerializer);
+        template.setValueSerializer(defaultSerializer);
     }
 
 }
