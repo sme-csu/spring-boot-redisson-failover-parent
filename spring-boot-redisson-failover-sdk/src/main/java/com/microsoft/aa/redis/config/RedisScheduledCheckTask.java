@@ -160,7 +160,6 @@ public class RedisScheduledCheckTask implements InitializingBean, ApplicationCon
         connectionFactory.afterPropertiesSet();
         redisTemplate.setConnectionFactory(connectionFactory);
         redisTemplate.afterPropertiesSet();
-        // refreshRedissonClientReference(changedRedissonClient);
         }catch (Exception e){
             logger.error("****switch  connection failed. try again next time...");
         }
@@ -185,14 +184,12 @@ public class RedisScheduledCheckTask implements InitializingBean, ApplicationCon
             // queueTransferService
             Field fieldQueueTransferService = Redisson.class.getDeclaredField("queueTransferService");
             fieldQueueTransferService.setAccessible(true);
-            // 把指定的field中的final修饰符去掉
             modifiersField.setInt(fieldQueueTransferService, fieldQueueTransferService.getModifiers() & ~Modifier.FINAL);
             fieldQueueTransferService.set(originalRedisson,fieldQueueTransferService.get(changedRedisson));
 
             // evictionScheduler
             Field fieldEvictionScheduler = Redisson.class.getDeclaredField("evictionScheduler");
             fieldEvictionScheduler.setAccessible(true);
-            // 把指定的field中的final修饰符去掉
             modifiersField.setInt(fieldEvictionScheduler, fieldEvictionScheduler.getModifiers() & ~Modifier.FINAL);
             fieldEvictionScheduler.set(originalRedisson,fieldEvictionScheduler.get(changedRedisson));
 
@@ -200,54 +197,35 @@ public class RedisScheduledCheckTask implements InitializingBean, ApplicationCon
             // writeBehindService
             Field fieldWriteBehindService = Redisson.class.getDeclaredField("writeBehindService");
             fieldWriteBehindService.setAccessible(true);
-            // 把指定的field中的final修饰符去掉
             modifiersField.setInt(fieldWriteBehindService, fieldWriteBehindService.getModifiers() & ~Modifier.FINAL);
             fieldWriteBehindService.set(originalRedisson,fieldWriteBehindService.get(changedRedisson));
 
             // connectionManager
             Field fieldConnectionManager = Redisson.class.getDeclaredField("connectionManager");
             fieldConnectionManager.setAccessible(true);
-            // 把指定的field中的final修饰符去掉
             modifiersField.setInt(fieldConnectionManager, fieldConnectionManager.getModifiers() & ~Modifier.FINAL);
             fieldConnectionManager.set(originalRedisson,fieldConnectionManager.get(changedRedisson));
 
             // liveObjectClassCache
             Field fieldLiveObjectClassCache = Redisson.class.getDeclaredField("liveObjectClassCache");
             fieldLiveObjectClassCache.setAccessible(true);
-            // 把指定的field中的final修饰符去掉
             modifiersField.setInt(fieldLiveObjectClassCache, fieldLiveObjectClassCache.getModifiers() & ~Modifier.FINAL);
             fieldLiveObjectClassCache.set(originalRedisson,fieldLiveObjectClassCache.get(changedRedisson));
 
             // config
             Field fieldConfig = Redisson.class.getDeclaredField("config");
             fieldConfig.setAccessible(true);
-            // 把指定的field中的final修饰符去掉
             modifiersField.setInt(fieldConfig, fieldConfig.getModifiers() & ~Modifier.FINAL);
             fieldConfig.set(originalRedisson,fieldConfig.get(changedRedisson));
 
             // responses
             Field fieldResponses = Redisson.class.getDeclaredField("responses");
             fieldResponses.setAccessible(true);
-            // 把指定的field中的final修饰符去掉
             modifiersField.setInt(fieldResponses, fieldResponses.getModifiers() & ~Modifier.FINAL);
             fieldResponses.set(originalRedisson,fieldResponses.get(changedRedisson));
 
         }catch (Exception e){
             logger.error("copyRedissonBean failed... " + e.toString());
-        }
-
-    }
-
-
-    private void refreshRedissonClientReference(RedissonClient changedRedissonClient){
-        try{
-            Class DistributedRedisLockClass = Class.forName("com.esm.core.cache.lock.DistributedRedisLock");
-            Object  redissonClientReference = applicationContext.getBean(DistributedRedisLockClass);
-            Field field = DistributedRedisLockClass.getDeclaredField("redissonClient");
-            field.setAccessible(true);
-            field.set(redissonClientReference, changedRedissonClient);
-        }catch (Exception e){
-            logger.error("getting redissonClientReference error: " + e.toString());
         }
 
     }
