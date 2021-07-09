@@ -12,10 +12,13 @@ import org.redisson.spring.data.connection.RedissonConnection;
 import org.redisson.spring.data.connection.RedissonConnectionFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 import org.springframework.data.redis.connection.ClusterInfo;
 import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.core.RedisConnectionUtils;
@@ -23,15 +26,17 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.lang.reflect.Field;
 import java.util.Date;
 import java.util.Properties;
 
 @Component
 @ConditionalOnProperty("esm.backup.redis.password")
-public class RedisScheduledCheckTask implements InitializingBean {
+public class RedisScheduledCheckTask implements InitializingBean, ApplicationContextAware {
 
     private final static Logger logger = LoggerFactory.getLogger(RedisScheduledCheckTask.class);
 
+    private ApplicationContext applicationContext;
 
     public String getCurrentPassword() {
         return currentPassword;
@@ -159,6 +164,7 @@ public class RedisScheduledCheckTask implements InitializingBean {
         connectionFactory.afterPropertiesSet();
         redisTemplate.setConnectionFactory(connectionFactory);
         redisTemplate.afterPropertiesSet();
+        refreshRedissonClientReference(changedRedissonClient);
         }catch (Exception e){
             logger.error("****switch  connection failed. try again next time...");
         }
@@ -166,5 +172,23 @@ public class RedisScheduledCheckTask implements InitializingBean {
 
     public void afterPropertiesSet() throws Exception {
         setCurrentPassword(redisConfig.useClusterServers().getPassword());
+    }
+
+    private void refreshRedissonClientReference(RedissonClient changedRedissonClient){
+        try{
+            Class DistributedRedisLockClass = Class.forName("com.esm.core.cache.lock.DistributedRedisLock");
+            Object  redissonClientReference = applicationContext.getBean(DistributedRedisLockClass);
+            Field field = DistributedRedisLockClass.getDeclaredField("redissonClient");
+            field.setAccessible(true);
+            field.set(redissonClientReference, changedRedissonClient);
+        }catch (Exception e){
+            logger.error("getting redissonClientReference error: " + e.toString());
+        }
+
+    }
+
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+        this.applicationContext = applicationContext;
     }
 }
