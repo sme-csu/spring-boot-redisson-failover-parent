@@ -27,6 +27,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.Date;
 import java.util.Properties;
 
@@ -63,14 +64,6 @@ public class RedisScheduledCheckTask implements InitializingBean, ApplicationCon
     @Autowired
     @Qualifier("redisConfig")
     private Config redisConfig;
-
-    public RedissonClient getRedissonClient() {
-        return redissonClient;
-    }
-
-    public void setRedissonClient(RedissonClient redissonClient) {
-        this.redissonClient = redissonClient;
-    }
 
     @Autowired
     @Qualifier("redissonClient")
@@ -158,13 +151,16 @@ public class RedisScheduledCheckTask implements InitializingBean, ApplicationCon
                     .setPassword(masterRedisProperty.getPassword());
             setCurrentPassword(masterRedisProperty.getPassword());
         }
+
+        // renew the RedissonClient object
         RedissonClient changedRedissonClient = Redisson.create(changedConfig);
+        copyRedissonBean(changedRedissonClient);
         setRedisConfig(changedConfig);
-        RedissonConnectionFactory connectionFactory = new RedissonConnectionFactory(changedRedissonClient);
+        RedissonConnectionFactory connectionFactory = new RedissonConnectionFactory(this.redissonClient);
         connectionFactory.afterPropertiesSet();
         redisTemplate.setConnectionFactory(connectionFactory);
         redisTemplate.afterPropertiesSet();
-        refreshRedissonClientReference(changedRedissonClient);
+        // refreshRedissonClientReference(changedRedissonClient);
         }catch (Exception e){
             logger.error("****switch  connection failed. try again next time...");
         }
@@ -173,6 +169,75 @@ public class RedisScheduledCheckTask implements InitializingBean, ApplicationCon
     public void afterPropertiesSet() throws Exception {
         setCurrentPassword(redisConfig.useClusterServers().getPassword());
     }
+
+    private void copyRedissonBean(RedissonClient changedRedissonClient){
+
+        try{
+            // convert to child class
+            Redisson  originalRedisson = (Redisson)this.redissonClient;
+            Redisson  changedRedisson = (Redisson)changedRedissonClient;
+
+            Field modifiersField = Field.class.getDeclaredField("modifiers");
+            modifiersField.setAccessible(true);
+
+
+            // get all properties which are needed to be reflected.
+            // queueTransferService
+            Field fieldQueueTransferService = Redisson.class.getDeclaredField("queueTransferService");
+            fieldQueueTransferService.setAccessible(true);
+            // 把指定的field中的final修饰符去掉
+            modifiersField.setInt(fieldQueueTransferService, fieldQueueTransferService.getModifiers() & ~Modifier.FINAL);
+            fieldQueueTransferService.set(originalRedisson,fieldQueueTransferService.get(changedRedisson));
+
+            // evictionScheduler
+            Field fieldEvictionScheduler = Redisson.class.getDeclaredField("evictionScheduler");
+            fieldEvictionScheduler.setAccessible(true);
+            // 把指定的field中的final修饰符去掉
+            modifiersField.setInt(fieldEvictionScheduler, fieldEvictionScheduler.getModifiers() & ~Modifier.FINAL);
+            fieldEvictionScheduler.set(originalRedisson,fieldEvictionScheduler.get(changedRedisson));
+
+
+            // writeBehindService
+            Field fieldWriteBehindService = Redisson.class.getDeclaredField("writeBehindService");
+            fieldWriteBehindService.setAccessible(true);
+            // 把指定的field中的final修饰符去掉
+            modifiersField.setInt(fieldWriteBehindService, fieldWriteBehindService.getModifiers() & ~Modifier.FINAL);
+            fieldWriteBehindService.set(originalRedisson,fieldWriteBehindService.get(changedRedisson));
+
+            // connectionManager
+            Field fieldConnectionManager = Redisson.class.getDeclaredField("connectionManager");
+            fieldConnectionManager.setAccessible(true);
+            // 把指定的field中的final修饰符去掉
+            modifiersField.setInt(fieldConnectionManager, fieldConnectionManager.getModifiers() & ~Modifier.FINAL);
+            fieldConnectionManager.set(originalRedisson,fieldConnectionManager.get(changedRedisson));
+
+            // liveObjectClassCache
+            Field fieldLiveObjectClassCache = Redisson.class.getDeclaredField("liveObjectClassCache");
+            fieldLiveObjectClassCache.setAccessible(true);
+            // 把指定的field中的final修饰符去掉
+            modifiersField.setInt(fieldLiveObjectClassCache, fieldLiveObjectClassCache.getModifiers() & ~Modifier.FINAL);
+            fieldLiveObjectClassCache.set(originalRedisson,fieldLiveObjectClassCache.get(changedRedisson));
+
+            // config
+            Field fieldConfig = Redisson.class.getDeclaredField("config");
+            fieldConfig.setAccessible(true);
+            // 把指定的field中的final修饰符去掉
+            modifiersField.setInt(fieldConfig, fieldConfig.getModifiers() & ~Modifier.FINAL);
+            fieldConfig.set(originalRedisson,fieldConfig.get(changedRedisson));
+
+            // responses
+            Field fieldResponses = Redisson.class.getDeclaredField("responses");
+            fieldResponses.setAccessible(true);
+            // 把指定的field中的final修饰符去掉
+            modifiersField.setInt(fieldResponses, fieldResponses.getModifiers() & ~Modifier.FINAL);
+            fieldResponses.set(originalRedisson,fieldResponses.get(changedRedisson));
+
+        }catch (Exception e){
+            logger.error("copyRedissonBean failed... " + e.toString());
+        }
+
+    }
+
 
     private void refreshRedissonClientReference(RedissonClient changedRedissonClient){
         try{

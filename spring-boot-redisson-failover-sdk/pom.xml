@@ -5,7 +5,7 @@
 
     <groupId>com.microsoft.redission</groupId>
     <artifactId>spring-boot-redisson-failover-sdk</artifactId>
-    <version>1.0.2.RELEASE</version>
+    <version>1.0.3.RELEASE</version>
     <build>
         <plugins>
             <plugin>
